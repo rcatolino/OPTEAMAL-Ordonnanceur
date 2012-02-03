@@ -184,8 +184,6 @@ void start_sched (void)
 /* Ordonnaceur basic (on prend betement les fonctions a la suite */
 void ordonnanceur(void)
 {
-
-
 	struct ctx_s * nextCtx = NULL;
 	irq_disable();
 	printf("----------------------------------------------------------Ordonnancement\n");

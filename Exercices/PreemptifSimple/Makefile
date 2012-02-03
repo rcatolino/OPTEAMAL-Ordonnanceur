@@ -3,7 +3,7 @@ LIBNAME=hw
 LIBFILE=$(ROOTDIR)/lib/lib$(LIBNAME).a
 
 CC      = gcc
-CFLAGS  = -Wall -pedantic -g -m32 #-ansi (Pr asm)
+CFLAGS  = -Wall -pedantic -g -m32#-ansi (Pr asm)
 LIBDIR  = $(ROOTDIR)/lib
 INCDIR  = -I$(ROOTDIR)/include
 LIBS    = -L$(LIBDIR) -l$(LIBNAME)

@@ -64,6 +64,7 @@ int init_ctx(struct ctx_s *ctx, int stack_size, func_t f, void *args)
     ctx->args = args; 
     ctx->etat=INITIAL; 
     ctx->ctx_magic = CTX_MAGIC; 
+    return 0;
 } 
 
 
@@ -120,6 +121,7 @@ int create_ctx(int stack_size, func_t f, void *args)
         last_ctx->next = new_ctx_s;
         last_ctx = new_ctx_s;
     }   
+    return 0;
 } 
 
 void yield(void) 
@@ -157,9 +159,4 @@ void ordonnanceur(void)
 	
 	irq_enable();
 }
-
-
-
-
-
 

@@ -9,7 +9,7 @@
 #include "gthread.h"
 #include "hw.h"
   
-#define TRACE(...) printf(__VA_ARGS__)
+#define TRACE(...) //printf(__VA_ARGS__)
 #define RETURN_SUCCESS 0
 #define RETURN_FAILURE 1
 #define EXIT_SUCCESS 0 
@@ -52,6 +52,7 @@ void wakeUpThread(int signb, siginfo_t * infos, void * ucontext){
   last_thread = last_thread->next;
   last_thread->next = first_thread;			
   sleeping[i]=NULL;
+
 	irq_enable();
 }
 unsigned int gsleep(unsigned int seconds){
@@ -70,7 +71,7 @@ unsigned int gsleep(unsigned int seconds){
         .sigev_value.sival_int=i,
       };
       struct itimerspec timerValue = {
-        .it_interval.tv_sec=seconds,
+        .it_interval.tv_sec=0,
         .it_interval.tv_nsec=0,
         .it_value.tv_sec=seconds,
         .it_value.tv_nsec=0,
@@ -318,9 +319,17 @@ void gthread_init(){
   //This function is only used for the sleep implementation
   /* start timer handler */
 	static struct sigaction sa;
+  stack_t ss;
+
+  ss.ss_sp = malloc(SIGSTKSZ);
+  ss.ss_size = SIGSTKSZ;
+  ss.ss_flags = 0;
+  if (sigaltstack(&ss, NULL) == -1){
+    TRACE("Unable to allocate sigalt stack");
+  }
 	sigemptyset(&sa.sa_mask);
 	sa.sa_sigaction = wakeUpThread;
-	sa.sa_flags = SA_SIGINFO;
+	sa.sa_flags = SA_ONSTACK | SA_SIGINFO;
 	sigaction(SIGUSR2, &sa, (struct sigaction *)0);
   create_thread(20384,f_idle,NULL);
 }

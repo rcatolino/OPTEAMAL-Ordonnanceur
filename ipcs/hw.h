@@ -12,6 +12,7 @@
 
 typedef void (irq_handler_func_t)(void); 
 
+#define TM_FREQ 80000 //8ms
 #define TIMER_IRQ	2
 
 void setup_irq(unsigned int irq, irq_handler_func_t handler);

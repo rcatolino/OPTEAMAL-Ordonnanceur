@@ -7,24 +7,15 @@ struct sem *semaphore;
 
 void f_ping(void *args) 
 { 
-	int i =0;
-	int j =0;
     while(1)
     { 
       //printf("A\n") ;
       //printf("B\n") ;
       //printf("C\n") ;
-      i++;
-      if(i>994000){
-    	  i=0;
-    	  printf("sem_down\n") ;
-    	  sem_down(semaphore);
-          if(j>3){
-        	  j=0;
-          }
-          j++;
-      }
-      sleep(5);
+      printf("Going to sleep\n");
+      gsleep(1);
+      printf("Waking up, sem_down\n");
+      sem_down(semaphore);
     }
     printf("FINI\n");
 } 
@@ -54,11 +45,12 @@ void f_poong(void *args)
     } 
 }
 
+
 int main ( int argc, char *argv[]){
 	
 	printf("START\n") ;
-	printf("START\n") ;
 	
+  gthread_init();
 	semaphore = (struct sem *)malloc(sizeof(struct sem));
 	printf("Before init\n") ;
 	sem_init(semaphore, 1);

@@ -4,29 +4,92 @@
 #include <assert.h>
 #include <unistd.h>
 #include <signal.h>
+#include <time.h>
 #include <sys/time.h>
 #include "gthread.h"
 #include "hw.h"
   
-#define TRACE(...) //printf(__VA_ARGS__)
+#define TRACE(...) printf(__VA_ARGS__)
 #define RETURN_SUCCESS 0
 #define RETURN_FAILURE 1
 #define EXIT_SUCCESS 0 
 #define CTX_MAGIC 0xDEADBEEF
+#define MAX_THREADS 5
  
 struct thread *first_thread = NULL;
 struct thread *current_thread = NULL;
 struct thread *prev_thread = NULL;
 struct thread *last_thread = NULL;
+static void * sleeping[MAX_THREADS] = {NULL};
 
-void f_idle(void *args)//TODO
+void f_idle(void *args)
 {
+  struct timespec time = {
+    .tv_sec=0,
+    .tv_nsec=TM_FREQ*1000,
+  };
     while(1)
     {
-      TRACE("idle %d\n") ;
+      TRACE("idle \n") ;
+      nanosleep(&time,NULL);
+      TRACE("waking up\n");
     }
 }
 
+void wakeUpThread(int signb, siginfo_t * infos, void * ucontext){
+  int i = infos->si_value.sival_int;
+  irq_disable();
+  if (sleeping[i]==NULL){
+    irq_enable();
+    return;
+    //Big hack, just forget you saw this block. Please.
+  }
+  TRACE("This is a wake up call!, sleep id : %d\n",i);
+  TRACE("current_thread : %p, last_thread : %p, sleeping thread : %p\n"\
+      ,current_thread,last_thread,sleeping[i]);
+  current_thread->etat = ACTIF;
+  last_thread->next = sleeping[i];
+  last_thread = last_thread->next;
+  last_thread->next = first_thread;			
+  sleeping[i]=NULL;
+	irq_enable();
+}
+unsigned int gsleep(unsigned int seconds){
+  //find room in sleeping :
+  int i;
+  timer_t timerId;
+
+  irq_disable();
+  for (i=0; i<MAX_THREADS; i++){
+    if (sleeping[i]==NULL){
+      /* set timer */ 
+      //struct itimerval value;
+      struct sigevent evp = {
+        .sigev_notify=SIGEV_SIGNAL,
+        .sigev_signo=SIGUSR2,
+        .sigev_value.sival_int=i,
+      };
+      struct itimerspec timerValue = {
+        .it_interval.tv_sec=seconds,
+        .it_interval.tv_nsec=0,
+        .it_value.tv_sec=seconds,
+        .it_value.tv_nsec=0,
+      };
+      TRACE("Going to sleep with id : %d!\n",i);
+      timer_create(CLOCK_REALTIME,&evp,&timerId);
+      timer_settime(timerId,0,&timerValue,NULL);
+
+      //Put the thread in sleeping mode :
+      remove_Current_thread();
+      current_thread->etat = ATTENTE;
+      sleeping[i]=current_thread;
+      ordonnanceur();
+      return 0;
+    }
+  }
+  irq_enable();
+  return -1;
+}
 /* Initialisation du contexte d'execution associee a f*/
 int init_thread(struct thread *thread, int stack_size, func_t f, void *args) 
 { 	
@@ -57,8 +120,10 @@ void switch_to_thread(struct thread *thread)
         :"r"(current_thread->esp), 
          "r"(current_thread->ebp) 
     ); 
+    TRACE("switching done\n");
     if (current_thread->etat == INITIAL) 
     { 
+        TRACE("starting new thread\n");
         start_current_thread(); 
     } 
 }  
@@ -67,7 +132,9 @@ void start_current_thread(void)
 { 
     current_thread->etat=ACTIF;
     irq_enable();
+    TRACE("calling thread entry point\n");
     current_thread->f(current_thread->args);   
+    TRACE("thread returned from main function\n");
     current_thread->etat=FINI; 
     free(current_thread->stack);
     remove_Current_thread();
@@ -134,13 +201,17 @@ void ordonnanceur(void)
 				case INITIAL:
 
 				case ACTIF:
+          TRACE("current context active\n");
 					nextCtx = current_thread->next;
+          TRACE("switching to next one\n");
 					prev_thread=current_thread;
 					break;
 				case ATTENTE:
+          TRACE("current context stopped\n");
 					nextCtx = prev_thread->next;
 					break;
 				case FINI:
+          TRACE("current context ended\n");
 					nextCtx = prev_thread->next;//TODO
 					break;
 				default:
@@ -152,6 +223,7 @@ void ordonnanceur(void)
     	nextCtx = first_thread;
     }
 	if(nextCtx != current_thread)
+    TRACE("switching to nextCtx : %p\n",nextCtx);
 		switch_to_thread(nextCtx);
 	}
 	irq_enable();
@@ -242,12 +314,13 @@ void remove_Current_thread(){
 	}
 }
 
-
-
-
-
-
-
-
-
-
+void gthread_init(){
+  //This function is only used for the sleep implementation
+  /* start timer handler */
+	static struct sigaction sa;
+	sigemptyset(&sa.sa_mask);
+	sa.sa_sigaction = wakeUpThread;
+	sa.sa_flags = SA_SIGINFO;
+	sigaction(SIGUSR2, &sa, (struct sigaction *)0);
+  create_thread(20384,f_idle,NULL);
+}

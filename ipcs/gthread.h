@@ -1,5 +1,5 @@
-#ifndef _PINGPONG_H_ 
-#define _PINGPONG_H_ 
+#ifndef _GTHREAD_H_ 
+#define _GTHREAD_H_ 
 
 enum threadtate {FINI, ACTIF, ATTENTE, INITIAL}; 
 typedef void (func_t)(void *); 
@@ -21,6 +21,8 @@ struct thread {
     struct thread *next;
 };
 
+unsigned int gsleep(unsigned int seconds);
+void gthread_init();
 void start_sched (void);
 void switch_to_thread(struct thread *thread); 
 void start_current_thread(void); 

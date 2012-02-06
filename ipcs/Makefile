@@ -13,7 +13,7 @@ LOBJ=gthread.o hw.o
 
 $(EXE): $(EOBJ) $(LIB)
 	@echo building $<
-	$(EDL)  -o $(EXE) $(EDLFLAGS) $(EOBJ) $(LIB)
+	$(EDL) -o $(EXE) $(EDLFLAGS) $(EOBJ) $(LIB) -lrt
 	@echo done
 
 $(LIB): $(LOBJ)

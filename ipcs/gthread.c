@@ -9,7 +9,6 @@
 #include "gthread.h"
 #include "hw.h"
   
-#define TRACE(...) //printf(__VA_ARGS__)
 #define RETURN_SUCCESS 0
 #define RETURN_FAILURE 1
 #define EXIT_SUCCESS 0 
@@ -17,7 +16,6 @@
 #define MAX_THREADS 5
  
 struct thread *first_thread = NULL;
-struct thread *current_thread = NULL;
 struct thread *prev_thread = NULL;
 struct thread *last_thread = NULL;
 static void * sleeping[MAX_THREADS] = {NULL};
@@ -194,8 +192,6 @@ void ordonnanceur(void)
 	irq_disable();
 	TRACE("----------------------------------------------------------Ordonnancement\n");
 	
-	if ( first_thread )// Si contextes dans la liste active 
-	{
 	if (current_thread) // Si on a un contexte courant
 	  {
 			switch(current_thread->etat){
@@ -226,7 +222,6 @@ void ordonnanceur(void)
 	if(nextCtx != current_thread)
     TRACE("switching to nextCtx : %p\n",nextCtx);
 		switch_to_thread(nextCtx);
-	}
 	irq_enable();
 }
 
@@ -320,6 +315,7 @@ void gthread_init(){
   /* start timer handler */
 	static struct sigaction sa;
   stack_t ss;
+  current_thread=NULL;
 
   ss.ss_sp = malloc(SIGSTKSZ);
   ss.ss_size = SIGSTKSZ;

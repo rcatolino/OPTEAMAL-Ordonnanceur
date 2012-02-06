@@ -21,6 +21,8 @@ struct thread {
     struct thread *next;
 };
 
+struct thread *current_thread;
+
 unsigned int gsleep(unsigned int seconds);
 void gthread_init();
 void start_sched (void);

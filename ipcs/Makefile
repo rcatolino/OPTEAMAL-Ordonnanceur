@@ -9,7 +9,7 @@ LIB=libgthread.a #Static library name
 ECHO=@echo
 
 EOBJ=test.o 
-LOBJ=gthread.o hw.o
+LOBJ=gthread.o hw.o ipcs.o
 
 $(EXE): $(EOBJ) $(LIB)
 	@echo building $<

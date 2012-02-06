@@ -27,6 +27,7 @@ void f_pong(void *args)
     //printf("1\n") ;
     //printf("2\n") ;
     printf("sem_up 1\n") ;
+    gsleep(2);
     sem_up(semaphore);
     //printf("3\n") ;
     
@@ -38,6 +39,7 @@ void f_poong(void *args)
     while(1)  
     { 
       printf("sem_up 2\n") ;
+      gsleep(4);
       sem_up(semaphore);
       //printf("$\n") ;
       //printf("#\n") ;

@@ -27,7 +27,10 @@ unsigned int gsleep(unsigned int seconds);
 void gthread_init();
 void start_sched (void);
 void switch_to_thread(struct thread *thread); 
+void remove_current_thread();
 void start_current_thread(void); 
+void restart_thread(struct thread * restarting);
+void stop_current_thread();
 void yield(void);
 void ordonnanceur(void);
 

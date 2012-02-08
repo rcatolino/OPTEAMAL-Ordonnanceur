@@ -8,9 +8,16 @@
 #include "ipcs.h"
 
 struct sem *semaphore;
+static mqd_t mtest;
 
 void f_ping(void *args) 
 { 
+  gsleep(2);
+  printf("sending msg\n");
+  if (gmq_send(mtest,"lol",4,0)==-1){
+    perror("mq_send ");
+    return ;
+  }
     while(1)
     { 
       //printf("A\n") ;
@@ -40,26 +47,24 @@ void f_pong(void *args)
 
 void f_poong(void *args) 
 { 
-    while(1)  
-    { 
-      printf("sem_up 2\n") ;
-      gsleep(4);
-      sem_up(semaphore);
-      //printf("$\n") ;
-      //printf("#\n") ;
-      //printf("@\n") ;
-    } 
+  char msg[10];
+  while (1){
+    printf("Call to mq_receive \n");
+    if (gmq_receive(mtest,msg,10,0)==-1){
+      perror("poong mq_receive ");
+      return ;
+    }
+    gsleep(2);
+  }
 }
 
 
 int main ( int argc, char *argv[]){
 	
-  static mqd_t mtest;
   struct mq_attr attrs = {
     .mq_maxmsg=10, //beyond 10 msgs one might need root acces
     .mq_msgsize=10,
   };
-  char msg[10];
   mode_t mqMode= S_IRWXO; //Allows everything for everyone
 	printf("START\n") ;
 	
@@ -71,17 +76,8 @@ int main ( int argc, char *argv[]){
     perror("mq_open ");
     return -1;
   }
-  printf("Receiving from mq \n");
-  if (gmq_receive(mtest,msg,10,0)==-1){
-    perror("mq_receive ");
-    return -1;
-  }
-  sleep(1);
-  if (gmq_send(mtest,"lol",4,0)==-1){
-    perror("mq_send ");
-    return -1;
-  }
-  printf("%s\n",msg);
+  
+  
 	semaphore = (struct sem *)malloc(sizeof(struct sem));
 	printf("Before init\n") ;
 	sem_init(semaphore, 1);
@@ -91,6 +87,7 @@ int main ( int argc, char *argv[]){
 	create_thread(16384, f_ping, NULL);
 	create_thread(16384, f_poong, NULL);
 	start_sched(); 
+  
   mq_unlink("/mqtest");
 	exit(EXIT_SUCCESS); 
 }

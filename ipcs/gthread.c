@@ -18,7 +18,7 @@
 struct thread *first_thread = NULL;
 struct thread *prev_thread = NULL;
 struct thread *last_thread = NULL;
-static void * sleeping[MAX_THREADS] = {NULL};
+static struct thread * sleeping[MAX_THREADS] = {NULL};
 
 void f_idle(void *args)
 {
@@ -45,7 +45,7 @@ void wakeUpThread(int signb, siginfo_t * infos, void * ucontext){
   TRACE("This is a wake up call!, sleep id : %d\n",i);
   TRACE("current_thread : %p, last_thread : %p, sleeping thread : %p\n"\
       ,current_thread,last_thread,sleeping[i]);
-  current_thread->etat = ACTIF;
+  sleeping[i]->etat = ACTIF;
   last_thread->next = sleeping[i];
   last_thread = last_thread->next;
   last_thread->next = first_thread;			
@@ -79,7 +79,7 @@ unsigned int gsleep(unsigned int seconds){
       timer_settime(timerId,0,&timerValue,NULL);
 
       //Put the thread in sleeping mode :
-      remove_Current_thread();
+      remove_current_thread();
       current_thread->etat = ATTENTE;
       sleeping[i]=current_thread;
       ordonnanceur();
@@ -136,7 +136,7 @@ void start_current_thread(void)
     TRACE("thread returned from main function\n");
     current_thread->etat=FINI; 
     free(current_thread->stack);
-    remove_Current_thread();
+    remove_current_thread();
     ordonnanceur();
     exit(EXIT_SUCCESS); 
 } 
@@ -240,7 +240,7 @@ void sem_up(struct sem *sem){
 	if(sem->jeton > 0){//Si un jeton est disponible
 		sem->jeton--;
 	}else{ //Mise en attente de la tache
-		remove_Current_thread();
+		remove_current_thread();
 		current_thread->etat = ATTENTE;
 
 		// On insert thread dans la liste d'attente sur le semaphore
@@ -281,34 +281,37 @@ void sem_down(struct sem *sem){
 	}
 	irq_enable();
 }
+void restart_thread(struct thread * restarting){
 
+  irq_disable();
+  restarting->etat = ACTIF;
+  last_thread->next = restarting;
+  last_thread = last_thread->next;
+  last_thread->next = first_thread;			
+  irq_enable();
+
+}
+void stop_current_thread(){
+  irq_disable();
+  remove_current_thread();
+  current_thread->etat = ATTENTE;
+  irq_enable();
+}
 // On supprimme le contexte courant de la liste chainée des taches actives
-void remove_Current_thread(){
+void remove_current_thread(){
 	struct thread * next_of_current_thread = current_thread->next;
 	// On retire thread de la liste des thread actifs
-	if(current_thread == next_of_current_thread)//Si il n'y avait qu'une tache active (useless with idle)
-	{
-			//useless with idle
-	}else{ //Si il y a d'autres taches actives
-		if( current_thread == first_thread ) //Si c'est le premier à retirer de la liste des taches actives
-		{
-			if(current_thread == last_thread){ //Si c'est aussi le dernier aussi à retirer
-				//useless with idle
-			}else{
-				first_thread = next_of_current_thread;
-				last_thread->next = first_thread;
-				prev_thread = last_thread;
-			}
-		}else{
-			if(current_thread == last_thread){ //Si c'est le dernier à retirer et pas le premier
-				prev_thread->next = first_thread;
-				last_thread = prev_thread;
-
-			}else{ //Si celui à retirer est au milieu
-				prev_thread->next = next_of_current_thread;
-			}
-		}
-	}
+  if( current_thread == first_thread ) //Si c'est le premier à retirer de la liste des taches actives
+  {
+    first_thread = next_of_current_thread;
+    last_thread->next = first_thread;
+    prev_thread = last_thread;
+  }else if(current_thread == last_thread){ //Si c'est le dernier à retirer et pas le premier
+    prev_thread->next = first_thread;
+    last_thread = prev_thread;
+  }else{ //Si celui à retirer est au milieu
+    prev_thread->next = next_of_current_thread;
+  }
 }
 
 void gthread_init(){

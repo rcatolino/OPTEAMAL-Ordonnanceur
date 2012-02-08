@@ -189,6 +189,7 @@ void start_sched (void)
 void ordonnanceur(void)
 {
 	struct thread * nextCtx = NULL;
+  check_events();
 	irq_disable();
 	TRACE("----------------------------------------------------------Ordonnancement\n");
 	
@@ -313,7 +314,7 @@ void remove_Current_thread(){
 void gthread_init(){
   //This function is only used for the sleep implementation
   /* start timer handler */
-	static struct sigaction sa;
+	struct sigaction sa;
   stack_t ss;
   current_thread=NULL;
 
@@ -327,5 +328,7 @@ void gthread_init(){
 	sa.sa_sigaction = wakeUpThread;
 	sa.sa_flags = SA_ONSTACK | SA_SIGINFO;
 	sigaction(SIGUSR2, &sa, (struct sigaction *)0);
+
+  events_init();
   create_thread(20384,f_idle,NULL);
 }

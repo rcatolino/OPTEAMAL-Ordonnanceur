@@ -1,7 +1,7 @@
 #ifndef _GTHREAD_H_ 
 #define _GTHREAD_H_ 
 
-enum threadtate {FINI, ACTIF, ATTENTE, INITIAL}; 
+enum threadstate {FINI, ACTIF, ATTENTE, INITIAL}; 
 typedef void (func_t)(void *); 
 
 struct sem {
@@ -15,7 +15,7 @@ struct thread {
     void *ebp; 
     void *args; 
     void *stack; 
-    enum threadtate etat; 
+    enum threadstate etat; 
     func_t *f; 
     unsigned int thread_magic; 
     struct thread *next;
@@ -39,6 +39,10 @@ void sem_up(struct sem *sem);
 void sem_down(struct sem *sem);
 
 void remove_Current_thread();
+//ipcs : 
+int events_init();
+void check_events();
+
 
 #endif 
 

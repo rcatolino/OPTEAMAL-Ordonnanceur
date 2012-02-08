@@ -1,7 +1,11 @@
-#include "gthread.h"
 #include <stdio.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <mqueue.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include "gthread.h"
+#include "ipcs.h"
 
 struct sem *semaphore;
 
@@ -50,9 +54,34 @@ void f_poong(void *args)
 
 int main ( int argc, char *argv[]){
 	
+  static mqd_t mtest;
+  struct mq_attr attrs = {
+    .mq_maxmsg=10, //beyond 10 msgs one might need root acces
+    .mq_msgsize=10,
+  };
+  char msg[10];
+  mode_t mqMode= S_IRWXO; //Allows everything for everyone
 	printf("START\n") ;
 	
   gthread_init();
+  mq_unlink("/mqtest");
+	mtest=gmq_open( "/mqtest" , O_EXCL|O_RDWR|O_CREAT,\
+      mqMode, &attrs);
+  if (mtest==-1){
+    perror("mq_open ");
+    return -1;
+  }
+  printf("Receiving from mq \n");
+  if (gmq_receive(mtest,msg,10,0)==-1){
+    perror("mq_receive ");
+    return -1;
+  }
+  sleep(1);
+  if (gmq_send(mtest,"lol",4,0)==-1){
+    perror("mq_send ");
+    return -1;
+  }
+  printf("%s\n",msg);
 	semaphore = (struct sem *)malloc(sizeof(struct sem));
 	printf("Before init\n") ;
 	sem_init(semaphore, 1);
@@ -62,5 +91,6 @@ int main ( int argc, char *argv[]){
 	create_thread(16384, f_ping, NULL);
 	create_thread(16384, f_poong, NULL);
 	start_sched(); 
+  mq_unlink("/mqtest");
 	exit(EXIT_SUCCESS); 
 }

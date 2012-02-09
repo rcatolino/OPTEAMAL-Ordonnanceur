@@ -1,6 +1,7 @@
 #ifndef _GTHREAD_H_ 
 #define _GTHREAD_H_ 
 
+#include <stdint.h>
 enum threadstate {FINI, ACTIF, ATTENTE, INITIAL}; 
 typedef void (func_t)(void *); 
 
@@ -19,6 +20,7 @@ struct thread {
     func_t *f; 
     unsigned int thread_magic; 
     struct thread *next;
+    uint32_t events;
 };
 
 struct thread *current_thread;

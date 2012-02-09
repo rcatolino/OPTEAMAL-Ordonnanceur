@@ -54,6 +54,8 @@ int add_file_listener(struct file_watched * file, uint32_t events){
   //add the current thread to the threads pending for this event :
   current_thread->next=file->first_listener;//The current thread needs to be removed!!!
   file->first_listener=current_thread; 
+  //Update the events wathed by the thread :
+  current_thread->events = events;
   //Update the events watched on this file : 
   DEBUG("Adding file listener\n");
   if (file->first_listener->next==NULL){
@@ -95,48 +97,17 @@ int register_event(int fd, uint32_t events){
     //This file is already beeing watched :
     ret = add_file_listener(i,events);
   }
-  /*
-  struct event * new_ev = malloc(sizeof(struct event));
-  struct event * i;
-  int ret=0;
-  new_ev->ev.events=events | EPOLLET;
-  new_ev->ev.data.fd=fd;
-  DEBUG("registering pointer : %p\n",new_ev);
-  new_ev->waiting = current_thread;
-  //chain the event in first position:
-  new_ev->ev_next=ev_first;
-  ev_first=new_ev;
-  //Is this file descriptor registered already?
-  for (i=ev_first->ev_next; i!=NULL; i=i->ev_next){
-    if (i->ev.data.fd==fd && (i->ev.events & events)==0){
-      DEBUG("file descriptor already watched, for another event\n");
-      new_ev->ev.events|=events; // Add the new event to watch
-      ret=epoll_ctl(epolld,EPOLL_CTL_MOD,fd,&(new_ev->ev)); //And register it.
-      return ret;
-    } else if (i->ev.data.fd==fd){
-      DEBUG("file descriptor watched already for this event\n");
-      //In the case where the new event is already watched, there is nothing
-      //more to do with epoll.
-      return ret;
-    }
-  }
-  if (i==NULL){
-    DEBUG("file descriptor not watched yet\n");
-    //This file descriptor is not watched yet, register it.
-    ret=epoll_ctl(epolld,EPOLL_CTL_ADD,fd,&(new_ev->ev));
-  }
-  */
   DEBUG("Event registered\n");
   return ret;
 }
 
 void check_events(){
-  struct epoll_event evs[1];
+  struct epoll_event evs;
   int ret;
   struct thread * woken_up;
   struct file_watched * file;
   TRACE("checking events\n");
-  ret=epoll_wait(epolld,evs,1,0);
+  ret=epoll_wait(epolld,&evs,1,0);
   if (ret==-1){
     perror("epoll_wait ");
     return;
@@ -147,8 +118,9 @@ void check_events(){
     return;
   }
   DEBUG("new event!\n");
-  file = evs[0].data.ptr;
-  DEBUG("An event has occured : %d, data : %p\n",evs[0].events,file);
+  file = evs.data.ptr;
+  woken_up=file->first_listener;
+  DEBUG("An event has occured : %d, data : %p\n",evs.events,file);
   //Find the first thread associated with this event, note that,
   //since threads are added in first position in the linked list,
   //the first one to be found will be the last added, which mean that
@@ -157,8 +129,15 @@ void check_events(){
   //be woken up. This behaviour is not very nice, but it's the easier 
   //to implement right now
   DEBUG("file descriptor : %d, first thread : %p\n",\
-      file->fd,file->first_listener);
-  woken_up=file->first_listener;
+      file->fd,woken_up);
+  while (woken_up != NULL && (evs.events & woken_up->events) == 0 ){
+    woken_up=woken_up->next;
+  }
+  if (woken_up==NULL){
+    //No one seems to be registered for this event, ideally this should not happen
+    DEBUG("No thread waiting for the event\n");
+    return;
+  }
   remove_file_listener(file);
   restart_thread(woken_up);
 }
@@ -204,6 +183,8 @@ ssize_t gmq_receive(mqd_t mqdes, char * msg_ptr, size_t msg_len,\
     ret = register_event(mqdes,EPOLLIN);
     if (ret==-1) perror("register event ");
     ordonnanceur();
+    ret = mq_receive(mqdes, msg_ptr, msg_len, msg_prio); //ask for the message again,
+    //now that we know it won't block
     return ret;
   }
   return ret;

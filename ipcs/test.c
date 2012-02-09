@@ -21,7 +21,7 @@ void f_ping(void *args)
       gsleep(2);
       if (i<3){
         printf("sending msg\n");
-        if (gmq_send(mtest,"lol",4,0)==-1){
+        if (gmq_send(mtest,"coucou",7,0)==-1){
           perror("mq_send ");
           return ;
         }
@@ -54,7 +54,6 @@ void f_poong(void *args)
       return ;
     }
     printf("%s\n",msg);
-    gsleep(1);
   }
 }
 

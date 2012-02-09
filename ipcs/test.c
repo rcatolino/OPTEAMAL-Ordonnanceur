@@ -66,17 +66,16 @@ int main ( int argc, char *argv[]){
   };
   mode_t mqMode= S_IRWXO; //Allows everything for everyone
 	printf("START\n") ;
-	
-  gthread_init();
   mq_unlink("/mqtest");
+
+  gthread_init();
+
 	mtest=gmq_open( "/mqtest" , O_EXCL|O_RDWR|O_CREAT,\
       mqMode, &attrs);
   if (mtest==-1){
     perror("mq_open ");
     return -1;
   }
-  
-  
 	semaphore = (struct sem *)malloc(sizeof(struct sem));
 	printf("Before init\n") ;
 	sem_init(semaphore, 1);
@@ -85,8 +84,8 @@ int main ( int argc, char *argv[]){
 	//create_thread(16384, f_pong, NULL);
 	create_thread(16384, f_ping, NULL);
 	create_thread(16384, f_poong, NULL);
-	start_sched(); 
-  
+  printf("COUCOUCOUCOU\n");
+  gsleep(15);
   mq_unlink("/mqtest");
 	exit(EXIT_SUCCESS); 
 }

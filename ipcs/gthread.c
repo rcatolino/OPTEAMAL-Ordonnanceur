@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <time.h>
+#include <errno.h>
 #include <sys/time.h>
 #include "gthread.h"
 #include "hw.h"
@@ -92,14 +93,22 @@ unsigned int gsleep(unsigned int seconds){
 /* Initialisation du contexte d'execution associee a f*/
 int init_thread(struct thread *thread, int stack_size, func_t f, void *args) 
 { 	
-    thread->stack = malloc(stack_size); 
-    if (!thread->stack) return 0; 
-    thread->esp = (void *)((unsigned char*)thread->stack + stack_size - 4    ); 
-    thread->ebp = (void *)((unsigned char*)thread->stack + stack_size - 4    ); 
     thread->f = f; 
+    if (f==NULL && stack_size==0){
+      thread->etat=ACTIF;
+    } else if (f!=NULL && stack_size!=0){
+      thread->stack = malloc(stack_size); 
+      if (!thread->stack) return 0; 
+      thread->esp = (void *)((unsigned char*)thread->stack + stack_size - 4    ); 
+      thread->ebp = (void *)((unsigned char*)thread->stack + stack_size - 4    ); 
+      thread->etat=INITIAL; 
+    } else {
+      errno=EINVAL;
+      return -1;
+    }
     thread->args = args; 
-    thread->etat=INITIAL; 
     thread->thread_magic = CTX_MAGIC;
+    DEBUG("Thread initialized\n");
     return 0;
 } 
 
@@ -144,26 +153,30 @@ void start_current_thread(void)
 
 int create_thread(int stack_size, func_t f, void *args) 
 {
-    struct thread *new_thread = (struct thread *)malloc(sizeof(struct thread));
-    if (! new_thread) return 0;
+  int ret=0;
+  struct thread *new_thread = (struct thread *)malloc(sizeof(struct thread));
+  TRACE("Context created : %p \n",new_thread);
+  if (!new_thread) return 0;
 
-    init_thread(new_thread, stack_size, f, args); 
-
-    if ( (!current_thread) && (!first_thread))/*Si aucun contexte deja cree */ 
-    { 
-		new_thread->next = new_thread;
-		first_thread = new_thread;
-		last_thread = first_thread;
-		prev_thread=NULL;
-    } 
-    else 
-    {
-        new_thread->next = first_thread; 
-        last_thread->next = new_thread;
-        last_thread = new_thread;
+  ret = init_thread(new_thread, stack_size, f, args); 
+  if (ret!=0) return ret;
+  if ( (!current_thread) && (!first_thread))/*Si aucun contexte deja cree */ 
+  { 
+    new_thread->next = new_thread;
+    first_thread = new_thread;
+    last_thread = first_thread;
+    prev_thread=NULL;
+    if (f==NULL && stack_size==0){
+      current_thread = new_thread;
     }
-
-    return 0;
+  } 
+  else 
+  {
+    new_thread->next = first_thread; 
+    last_thread->next = new_thread;
+    last_thread = new_thread;
+  }
+  return 0;
 } 
 
 void yield(void) 
@@ -334,5 +347,8 @@ void gthread_init(){
 	sigaction(SIGUSR2, &sa, (struct sigaction *)0);
 
   events_init();
+  create_thread(0,NULL,NULL); //turn the main flow of execution into a gthread
+  DEBUG("Main thread created\n");
   create_thread(20384,f_idle,NULL);
+	start_sched(); 
 }

@@ -55,10 +55,12 @@ int add_file_listener(struct file_watched * file, uint32_t events){
   current_thread->next=file->first_listener;//The current thread needs to be removed!!!
   file->first_listener=current_thread; 
   //Update the events watched on this file : 
+  DEBUG("Adding file listener\n");
   if (file->first_listener->next==NULL){
     //This file descriptor is not registered with epoll yet :
     file->ev.events=events | EPOLLET; // Add the new event to watch
     ret=epoll_ctl(epolld,EPOLL_CTL_ADD,file->fd,&(file->ev)); //And register it.
+    DEBUG("epoll_ctl ret : %d, fd : %d\n",ret,file->fd);
     return ret;
   }
   if ((file->ev.events & events)==0){
@@ -81,9 +83,10 @@ int register_event(int fd, uint32_t events){
   //Is the file descriptor in the file list already?
   for (i=first_file; i!=NULL && i->fd==fd; i=i->next);
   if (i==NULL){
-    DEBUG("Watching new file\n");
+    DEBUG("Watching new file : %d\n",fd);
     //This file is beeing wathed for the fisrt time, add it in linked list
     new_file=malloc(sizeof(struct file_watched));
+    new_file->fd=fd;
     new_file->ev.data.ptr=new_file; //used when an event is trigered on this fd
     new_file->next=first_file;
     first_file=new_file;
@@ -123,25 +126,29 @@ int register_event(int fd, uint32_t events){
     ret=epoll_ctl(epolld,EPOLL_CTL_ADD,fd,&(new_ev->ev));
   }
   */
+  DEBUG("Event registered\n");
   return ret;
 }
 
 void check_events(){
-  struct epoll_event evs;
+  struct epoll_event evs[1];
   int ret;
   struct thread * woken_up;
   struct file_watched * file;
-  ret=epoll_wait(epolld,&evs,1,0);
+  TRACE("checking events\n");
+  ret=epoll_wait(epolld,evs,1,0);
   if (ret==-1){
     perror("epoll_wait ");
     return;
   }
   if (ret==0){
     //no event have happened
+    TRACE("No events\n");
     return;
   }
-  file = evs.data.ptr;
-  DEBUG("An event has occured : %d, data : %p\n",evs.events,file);
+  DEBUG("new event!\n");
+  file = evs[0].data.ptr;
+  DEBUG("An event has occured : %d, data : %p\n",evs[0].events,file);
   //Find the first thread associated with this event, note that,
   //since threads are added in first position in the linked list,
   //the first one to be found will be the last added, which mean that
@@ -154,7 +161,6 @@ void check_events(){
   woken_up=file->first_listener;
   remove_file_listener(file);
   restart_thread(woken_up);
-  //unwatch file :
 }
 
 mqd_t gmq_open(const char * name, int oflag, mode_t mode, \
@@ -195,7 +201,10 @@ ssize_t gmq_receive(mqd_t mqdes, char * msg_ptr, size_t msg_len,\
     DEBUG("mq_receive would block, register it\n");
     //register new event
     stop_current_thread();
-    return register_event(mqdes,EPOLLIN);
+    ret = register_event(mqdes,EPOLLIN);
+    if (ret==-1) perror("register event ");
+    ordonnanceur();
+    return ret;
   }
   return ret;
 }

@@ -106,6 +106,7 @@ int init_thread(struct thread *thread, int stack_size, func_t f, void *args)
 
 void switch_to_thread(struct thread *thread) 
 { 
+    TRACE("switching to thread %p\n",thread);
     assert(thread->thread_magic==CTX_MAGIC); 
     assert(thread->etat!=FINI); 
     if (current_thread) /* Si il y a un contexte courant */

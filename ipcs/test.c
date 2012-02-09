@@ -12,21 +12,21 @@ static mqd_t mtest;
 
 void f_ping(void *args) 
 { 
-  gsleep(2);
-  printf("sending msg\n");
-  if (gmq_send(mtest,"lol",4,0)==-1){
-    perror("mq_send ");
-    return ;
-  }
+  int i=0; 
     while(1)
     { 
       //printf("A\n") ;
       //printf("B\n") ;
       //printf("C\n") ;
-      printf("Going to sleep\n");
-      gsleep(1);
-      printf("Waking up, sem_down\n");
-      sem_down(semaphore);
+      gsleep(2);
+      if (i<3){
+        printf("sending msg\n");
+        if (gmq_send(mtest,"lol",4,0)==-1){
+          perror("mq_send ");
+          return ;
+        }
+        i++;
+      }
     }
     printf("FINI\n");
 } 
@@ -37,9 +37,8 @@ void f_pong(void *args)
   { 
     //printf("1\n") ;
     //printf("2\n") ;
-    printf("sem_up 1\n") ;
+    printf("f_pong\n") ;
     gsleep(2);
-    sem_up(semaphore);
     //printf("3\n") ;
     
   } 
@@ -49,12 +48,13 @@ void f_poong(void *args)
 { 
   char msg[10];
   while (1){
-    printf("Call to mq_receive \n");
+    printf("Call to mq_receive\n");
     if (gmq_receive(mtest,msg,10,0)==-1){
       perror("poong mq_receive ");
       return ;
     }
-    gsleep(2);
+    printf("%s\n",msg);
+    gsleep(1);
   }
 }
 
@@ -83,7 +83,7 @@ int main ( int argc, char *argv[]){
 	sem_init(semaphore, 1);
 	printf("After init\n") ;
 	
-	create_thread(16384, f_pong, NULL);
+	//create_thread(16384, f_pong, NULL);
 	create_thread(16384, f_ping, NULL);
 	create_thread(16384, f_poong, NULL);
 	start_sched(); 

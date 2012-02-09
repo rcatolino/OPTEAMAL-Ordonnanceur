@@ -1,8 +1,8 @@
 CC=gcc #Compiler
 EDL=gcc #Linker
 AR=ar #Archiver
-CCFLAGS=-Wall -m32 #Compiler options
-EDLFLAGS=-Wall -m32 #Linker options
+CCFLAGS=-Wall -g -m32 #Compiler options
+EDLFLAGS=-Wall -g -m32 #Linker options
 ARFLAGS=rcs
 EXE=test #Binary name
 LIB=libgthread.a #Static library name

@@ -38,6 +38,20 @@ void start_hw()
     sigemptyset(&sa.sa_mask);
     sa.sa_sigaction = do_timer_interrupt;
     sa.sa_flags = SA_RESTART | SA_NODEFER | SA_SIGINFO;
+    //Why SA_RESTART : 
+    //Theoretically we don't need it (that's the whole point of the epoll-based blocking
+    //system). However i had absolutly no envy to implement every single potentially
+    //blocking system call, even though it's only a couple of lines to add for each one.
+    //Instead the SA_RESTART allows me to use almost any system call without worrying 
+    //about whether it will block or not. That's because if a call comes to block, the sytem 
+    //will block the whole process, until the scheduler timer expire and restart another 
+    //thread. The difference when we use SA_RESTART is that when the round of the thread
+    //that launched the system call comes again, the call is restarted instead of failing.
+    //This way we loose cpu time because the threads are actually waiting for the call to
+    //return are still scheduled to run periodically, but since we have only 5 threads in
+    //GHome and most of the blocking calls used are epoll-wrapped in gthread, the user will
+    //probably never see any differences. By using SA_RESTART we can use a lot more
+    //functionalities by sacrifying performance for some of them. Just be aware of it.
     sigaction(SIGUSR1, &sa, (struct sigaction *)0);
   }
 

@@ -37,7 +37,7 @@ void yield(void);
 void ordonnanceur(void);
 
 int init_thread(struct thread *thread, int stack_size, func_t f, void *args); 
-int create_thread(int stack_size, func_t f, void* args); 
+int gthread_create(int stack_size, func_t f, void* args); 
 
 void sem_init(struct sem *sem, unsigned int val);
 void sem_take(struct sem *sem);

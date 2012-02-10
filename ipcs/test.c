@@ -130,10 +130,10 @@ int main ( int argc, char *argv[]){
     perror("initServer");
     return 0;
   }
-	create_thread(16384, f_pong, NULL);
-	create_thread(16384, f_pouet, NULL);
-	//create_thread(16384, f_ping, NULL);
-	//create_thread(16384, f_poong, NULL);
+	gthread_create(16384, f_pong, NULL);
+	gthread_create(16384, f_pouet, NULL);
+	//gthread_create(16384, f_ping, NULL);
+	//gthread_create(16384, f_poong, NULL);
   printf("COUCOUCOUCOU\n");
   gsleep(1500);
   mq_unlink("/mqtest");

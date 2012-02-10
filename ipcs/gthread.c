@@ -168,7 +168,7 @@ void start_current_thread(void)
     exit(EXIT_SUCCESS); 
 } 
 
-int create_thread(int stack_size, func_t f, void *args) 
+int gthread_create(int stack_size, func_t f, void *args) 
 {
   int ret=0;
   struct thread *new_thread = (struct thread *)malloc(sizeof(struct thread));
@@ -207,8 +207,7 @@ void yield(void)
     */
 } 
 
-void start_sched (void)
-{
+void start_sched (void) {
 	start_hw();
 	irq_disable();
 	setup_irq(TIMER_IRQ, ordonnanceur);
@@ -374,8 +373,8 @@ void gthread_init(){
 	sigaction(SIGUSR2, &sa, (struct sigaction *)0);
 
   events_init();
-  create_thread(0,NULL,NULL); //turn the main flow of execution into a gthread
+  gthread_create(0,NULL,NULL); //turn the main flow of execution into a gthread
   DEBUG("Main thread created\n");
-  create_thread(20384,f_idle,NULL);//Create the idle thread
+  gthread_create(20384,f_idle,NULL);//Create the idle thread
 	start_sched(); 
 }

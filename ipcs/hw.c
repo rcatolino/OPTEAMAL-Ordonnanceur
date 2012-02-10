@@ -41,7 +41,7 @@ void start_hw()
     //Why SA_RESTART : 
     //Theoretically we don't need it (that's the whole point of the epoll-based blocking
     //system). However i had absolutly no envy to implement every single potentially
-    //blocking system call, even though it's only a couple of lines to add for each one.
+    //blocking system call, even though it's only a couple lines to add for each one.
     //Instead the SA_RESTART allows me to use almost any system call without worrying 
     //about whether it will block or not. That's because if a call comes to block, the sytem 
     //will block the whole process, until the scheduler timer expire and restart another 

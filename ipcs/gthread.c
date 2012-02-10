@@ -21,8 +21,11 @@ struct thread *prev_thread = NULL;
 struct thread *last_thread = NULL;
 static struct thread * sleeping[MAX_THREADS] = {NULL};
 
-void f_idle(void *args)
-{
+void f_idle(void *args) {
+//This thread is always active, therefore when all over threads are stopped she 
+//can give cpu control back.
+//Notice that since this thread is always active and we dont't have any priorities
+//this thread is regularly scheduled to run, even if useful work could be done instead.
   struct timespec time = {
     .tv_sec=0,
     .tv_nsec=TM_FREQ*1000,
@@ -37,6 +40,7 @@ void f_idle(void *args)
 
 void wakeUpThread(int signb, siginfo_t * infos, void * ucontext){
   int i = infos->si_value.sival_int;
+  //i is the sleep id of the thread to be woken up. (see gsleep)
   irq_disable();
   if (sleeping[i]==NULL){
     irq_enable();
@@ -55,15 +59,18 @@ void wakeUpThread(int signb, siginfo_t * infos, void * ucontext){
 	irq_enable();
 }
 unsigned int gsleep(unsigned int seconds){
-  //find room in sleeping :
+  //We use a static array of five elements to stock the contexts of a sleeping
+  //thread. We can then have only five threads sleeping at a given time.
   int i;
   timer_t timerId;
 
+  //find room in sleeping array :
   irq_disable();
   for (i=0; i<MAX_THREADS; i++){
     if (sleeping[i]==NULL){
-      /* set timer */ 
-      //struct itimerval value;
+      //Set up a timer to be woken up when sleeping time is over.
+      //Each sleeping thread has an id (sigev_value.sival_int) that is used
+      //to determine which context to wake up on timer expiration.
       struct sigevent evp = {
         .sigev_notify=SIGEV_SIGNAL,
         .sigev_signo=SIGUSR2,
@@ -82,6 +89,7 @@ unsigned int gsleep(unsigned int seconds){
       //Put the thread in sleeping mode :
       remove_current_thread();
       current_thread->etat = ATTENTE;
+      //Store the context
       sleeping[i]=current_thread;
       ordonnanceur();
       return 0;
@@ -95,19 +103,27 @@ int init_thread(struct thread *thread, int stack_size, func_t f, void *args)
 { 	
     thread->f = f; 
     if (f==NULL && stack_size==0){
+      //This thread is the main function, and therefore already has a valid context
       thread->etat=ACTIF;
     } else if (f!=NULL && stack_size!=0){
       thread->stack = malloc(stack_size); 
       if (!thread->stack) return 0; 
-      thread->esp = (void *)((unsigned char*)thread->stack + stack_size - 4    ); 
-      thread->ebp = (void *)((unsigned char*)thread->stack + stack_size - 4    ); 
+      //thread->stack is a pointer to the beginning of the stack, and we need
+      //to store a pointer the end of the stack into the base pointer, therefore :
+      thread->ebp = (void *)((char*)thread->stack + stack_size - 4); 
+      //Why -4 ? No idea, it seems to be working fine without it.
+      //At the thread creation the stack is empty, so the stack pointer=base pointer :
+      thread->esp = (void *)((char*)thread->stack + stack_size - 4); 
+      //the (char*) cast is there because of the pointer arithmetics,
+      //we don't want to add 4*stack_size, only stack_size
       thread->etat=INITIAL; 
     } else {
+      //No entry point specified, or no stak.
       errno=EINVAL;
       return -1;
     }
     thread->args = args; 
-    thread->thread_magic = CTX_MAGIC;
+    thread->thread_magic = CTX_MAGIC; //I still don't know why this is useful
     DEBUG("Thread initialized\n");
     return 0;
 } 
@@ -116,7 +132,8 @@ int init_thread(struct thread *thread, int stack_size, func_t f, void *args)
 void switch_to_thread(struct thread *thread) 
 { 
     TRACE("switching to thread %p\n",thread);
-    assert(thread->thread_magic==CTX_MAGIC); 
+    assert(thread->thread_magic==CTX_MAGIC);//May be this can be used to detect
+    // buffer overflows? 
     assert(thread->etat!=FINI); 
     if (current_thread) /* Si il y a un contexte courant */
         asm("movl %%esp, %0" "\n" "movl %%ebp, %1" 
@@ -143,8 +160,8 @@ void start_current_thread(void)
     irq_enable();
     TRACE("calling thread entry point\n");
     current_thread->f(current_thread->args);   
-    TRACE("thread returned from main function\n");
-    current_thread->etat=FINI; 
+    TRACE("thread returned from entry point\n");
+    current_thread->etat=FINI;
     free(current_thread->stack);
     remove_current_thread();
     ordonnanceur();
@@ -161,7 +178,7 @@ int create_thread(int stack_size, func_t f, void *args)
   ret = init_thread(new_thread, stack_size, f, args); 
   if (ret!=0) return ret;
   if ( (!current_thread) && (!first_thread))/*Si aucun contexte deja cree */ 
-  { 
+  {
     new_thread->next = new_thread;
     first_thread = new_thread;
     last_thread = first_thread;
@@ -199,7 +216,7 @@ void start_sched (void)
 	TRACE("start_sched\n");
 }
 
-/* Ordonnaceur basic (on prend betement les fonctions a la suite */
+/* Ordonnaceur basic (round robin) */
 void ordonnanceur(void)
 {
 	struct thread * nextCtx = NULL;
@@ -208,6 +225,8 @@ void ordonnanceur(void)
 	TRACE("----------------------------------------------------------Ordonnancement\n");
 	
 	if (current_thread) // Si on a un contexte courant
+  //Since the idle thread creation,
+  //we always have a current context. This test seems to be useless.
 	  {
 			switch(current_thread->etat){
 				case INITIAL:
@@ -217,14 +236,21 @@ void ordonnanceur(void)
 					nextCtx = current_thread->next;
           TRACE("switching to next one\n");
 					prev_thread=current_thread;
+          //In these cases we need to schedule the next thread to run,
+          //and also to update prev_thread, so that when a thread is stopped
+          //it can use prev_thread as entry point in the thread linked list
+          //to choose the next thread to be shceduled.
 					break;
 				case ATTENTE:
           TRACE("current context stopped\n");
 					nextCtx = prev_thread->next;
+          //In that case the prev_thread is still the last active thread. Just
+          //schedule the next one to be ran.
 					break;
 				case FINI:
           TRACE("current context ended\n");
 					nextCtx = prev_thread->next;//TODO
+          //What's to be done? free thread context?
 					break;
 				default:
 					break;
@@ -234,9 +260,10 @@ void ordonnanceur(void)
     {
     	nextCtx = first_thread;
     }
-	if(nextCtx != current_thread)
+	if(nextCtx != current_thread){
     TRACE("switching to nextCtx : %p\n",nextCtx);
 		switch_to_thread(nextCtx);
+  }
 	irq_enable();
 }
 
@@ -299,6 +326,7 @@ void restart_thread(struct thread * restarting){
 
   irq_disable();
   restarting->etat = ACTIF;
+  //chain new thread at end of list
   last_thread->next = restarting;
   last_thread = last_thread->next;
   last_thread->next = first_thread;			
@@ -329,7 +357,6 @@ void remove_current_thread(){
 }
 
 void gthread_init(){
-  //This function is only used for the sleep implementation
   /* start timer handler */
 	struct sigaction sa;
   stack_t ss;
@@ -349,6 +376,6 @@ void gthread_init(){
   events_init();
   create_thread(0,NULL,NULL); //turn the main flow of execution into a gthread
   DEBUG("Main thread created\n");
-  create_thread(20384,f_idle,NULL);
+  create_thread(20384,f_idle,NULL);//Create the idle thread
 	start_sched(); 
 }

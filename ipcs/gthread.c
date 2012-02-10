@@ -247,7 +247,7 @@ void sem_init(struct sem *sem, unsigned int val){
 }
 
 //On prend un jeton
-void sem_up(struct sem *sem){
+void sem_take(struct sem *sem){
 
 	irq_disable();
 	
@@ -274,7 +274,7 @@ void sem_up(struct sem *sem){
 }
 
 // Donner un jeton
-void sem_down(struct sem *sem){
+void sem_give(struct sem *sem){
 	irq_disable();
 	sem->jeton++;
 	

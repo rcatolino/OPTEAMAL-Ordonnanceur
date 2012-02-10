@@ -8,7 +8,7 @@ EXE=test #Binary name
 LIB=libgthread.a #Static library name
 ECHO=@echo
 
-EOBJ=test.o 
+EOBJ=test.o tcpserver.o
 LOBJ=gthread.o hw.o ipcs.o
 
 $(EXE): $(EOBJ) $(LIB)

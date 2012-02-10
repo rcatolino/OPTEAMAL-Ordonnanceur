@@ -40,8 +40,8 @@ int init_thread(struct thread *thread, int stack_size, func_t f, void *args);
 int create_thread(int stack_size, func_t f, void* args); 
 
 void sem_init(struct sem *sem, unsigned int val);
-void sem_up(struct sem *sem);
-void sem_down(struct sem *sem);
+void sem_take(struct sem *sem);
+void sem_give(struct sem *sem);
 
 void remove_Current_thread();
 //ipcs : 

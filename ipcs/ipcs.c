@@ -9,8 +9,10 @@
 #include <sys/epoll.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <signal.h>
 #include <mqueue.h>
+#include <sys/socket.h>
 #include <unistd.h>
 
 struct file_watched {
@@ -83,7 +85,7 @@ int register_event(int fd, uint32_t events){
   int ret;
   struct file_watched * new_file;
   //Is the file descriptor in the file list already?
-  for (i=first_file; i!=NULL && i->fd==fd; i=i->next);
+  for (i=first_file; i!=NULL && i->fd!=fd; i=i->next);
   if (i==NULL){
     DEBUG("Watching new file : %d\n",fd);
     //This file is beeing wathed for the fisrt time, add it in linked list
@@ -130,6 +132,12 @@ void check_events(){
   //to implement right now
   DEBUG("file descriptor : %d, first thread : %p\n",\
       file->fd,woken_up);
+  if ((evs.events & EPOLLIN)!=0){
+    DEBUG("EPOLLIN\n");
+  }
+  if ((evs.events & EPOLLOUT)!=0){
+    DEBUG("EPOLLOUT\n");
+  }
   while (woken_up != NULL && (evs.events & woken_up->events) == 0 ){
     woken_up=woken_up->next;
   }
@@ -142,50 +150,91 @@ void check_events(){
   restart_thread(woken_up);
 }
 
+int wait_event(int fd, uint32_t events){
+  int ret;
+  //register new event
+  stop_current_thread();
+  ret = register_event(fd,events);
+  if (ret==-1){
+    perror("register event ");
+    return -1;
+  }
+  ordonnanceur();
+  return 0;
+}
+// Message queues :
 mqd_t gmq_open(const char * name, int oflag, mode_t mode, \
     struct mq_attr * attr){
   mqd_t ret;
   oflag|=O_NONBLOCK;
   ret = mq_open(name,oflag,mode,attr);
-  if (ret==-1) return ret;
-  /*
-  if (fcntl(ret,F_SETFL,O_ASYNC | O_NONBLOCK)==-1) perror("fcntl SETFL");
-  if (fcntl(ret,F_SETOWN,getpid())==-1) perror("fcntl SETOWN ");
-  if (fcntl(ret,F_SETSIG,0)==-1) perror("fcntl SETSIG");
-  */ //That doesn't seem to be working...
   return ret;
 }
-
 int gmq_send(mqd_t mqdes, const char * msg_ptr, size_t msg_len, \
     unsigned int msg_prio) {
   int ret=0;
   ret = mq_send(mqdes, msg_ptr, msg_len, msg_prio);
   if(ret==0) return 0;
   if (errno==EAGAIN){
-    DEBUG("mq_send would block, register it\n");
-    //remove current thread from active threads :
-    stop_current_thread();
-    return register_event(mqdes,EPOLLOUT);
+    DEBUG("mq_send would block, delay it\n");
+    wait_event(mqdes,EPOLLOUT);
+    return mq_send(mqdes, msg_ptr, msg_len, msg_prio);
   }
   return ret;
 }
 ssize_t gmq_receive(mqd_t mqdes, char * msg_ptr, size_t msg_len,\
    unsigned int * msg_prio){
   int ret=0;
-
   ret = mq_receive(mqdes, msg_ptr, msg_len, msg_prio);
   if(ret==0) return 0; //no need to wait
-  DEBUG("mq_receive ret = %d\n",ret);
   if (errno==EAGAIN){
-    DEBUG("mq_receive would block, register it\n");
-    //register new event
-    stop_current_thread();
-    ret = register_event(mqdes,EPOLLIN);
-    if (ret==-1) perror("register event ");
-    ordonnanceur();
-    ret = mq_receive(mqdes, msg_ptr, msg_len, msg_prio); //ask for the message again,
+    DEBUG("mq_receive would block, delay it\n");
+    wait_event(mqdes,EPOLLIN);
+    return mq_receive(mqdes, msg_ptr, msg_len, msg_prio); //ask for the message again,
     //now that we know it won't block
-    return ret;
+  }
+  return ret;
+}
+// Sockets :
+inline int gsocket(int domain, int type, int protocol){
+  type|=SOCK_NONBLOCK;
+  return socket(domain,type,protocol);
+}
+
+int gaccept(int socketd, struct sockaddr * addr, socklen_t *addrlen){
+  int new_socket=0;
+  new_socket = accept4(socketd,addr,addrlen,SOCK_NONBLOCK);
+  if(new_socket==0) return 0; //no need to wait
+  if (errno==EAGAIN || errno==EWOULDBLOCK){
+    DEBUG("accept would block, delay it\n");
+    wait_event(socketd,EPOLLIN | EPOLLOUT);
+    return accept4(socketd,addr,addrlen,SOCK_NONBLOCK); //ask for the message again,
+    //now that we know it won't block
+  }
+  return new_socket;
+}
+
+ssize_t grecv(int sockfd, void *buff, size_t len, int flags){
+  int ret=0;
+  ret= recv(sockfd, buff, len, flags);
+  if(ret>=0) return ret; //no need to wait
+  if (errno==EAGAIN || errno==EWOULDBLOCK){
+    DEBUG("recv would block, delay it\n");
+    wait_event(sockfd,EPOLLIN);
+    DEBUG("Recv woken up\n");
+    return recv(sockfd, buff, len, flags);
+  }
+  return ret;
+}
+
+ssize_t gsend(int sockfd, void *buff, size_t len, int flags){
+  int ret=0;
+  ret= send(sockfd, buff, len, flags);
+  if(ret>=0) return ret; //no need to wait
+  if (errno==EAGAIN || errno==EWOULDBLOCK){
+    DEBUG("send would block, delay it\n");
+    wait_event(sockfd,EPOLLOUT);
+    return send(sockfd, buff, len, flags);
   }
   return ret;
 }

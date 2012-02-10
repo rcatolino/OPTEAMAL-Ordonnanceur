@@ -4,11 +4,15 @@
 #include <mqueue.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <string.h>
+#include "tcpserver.h"
 #include "gthread.h"
 #include "ipcs.h"
 
 struct sem *semaphore;
 static mqd_t mtest;
+static int socketServer;
+static int socketClient;
 
 void f_ping(void *args) 
 { 
@@ -33,15 +37,32 @@ void f_ping(void *args)
 
 void f_pong(void *args) 
 { 
-  while(1)
-  { 
-    //printf("1\n") ;
-    //printf("2\n") ;
-    printf("f_pong\n") ;
-    gsleep(2);
-    //printf("3\n") ;
-    
-  } 
+  char buff[11];
+  int ret;
+  printf("f_pong\n") ;
+  for(;;){
+    socketClient=waitClient(socketServer);
+    if (socketClient==-1) {
+      perror("wait client");
+      return;
+    }
+    printf("Client connected\n");
+    sem_give(semaphore);
+    while(1)
+    { 
+      ret=grecv(socketClient,buff,10,0);
+      if (ret==-1){
+        perror("grecv");
+        break;
+      }
+      if (ret==0){
+        break;
+      }
+      buff[ret]='\0';
+      printf("%s",buff);
+    } 
+    printf("Client deconnected\n");
+  }
 }
 
 void f_poong(void *args) 
@@ -56,7 +77,29 @@ void f_poong(void *args)
     printf("%s\n",msg);
   }
 }
-
+void f_pouet(void * args){
+  int ret;
+  char buff[90];
+  for(;;){
+    //Wait for a client :
+    sem_take(semaphore);
+    printf("Client waiting for imput...\n");
+    for (ret=0;ret!=-1;){
+      scanf("%80s",buff);
+      buff[80]='\0';
+      gsend(socketClient,buff,strlen(buff),0);
+      if (ret==-1){
+        perror("grecv");
+        break;
+      }
+      gsend(socketClient,"\n",2,0);
+      if (ret==-1){
+        perror("grecv");
+        break;
+      }
+    }
+  }
+}
 
 int main ( int argc, char *argv[]){
 	
@@ -78,14 +121,21 @@ int main ( int argc, char *argv[]){
   }
 	semaphore = (struct sem *)malloc(sizeof(struct sem));
 	printf("Before init\n") ;
-	sem_init(semaphore, 1);
+	sem_init(semaphore, 0);
 	printf("After init\n") ;
 	
-	//create_thread(16384, f_pong, NULL);
-	create_thread(16384, f_ping, NULL);
-	create_thread(16384, f_poong, NULL);
+  socketServer=initServer(1337);
+  printf("Server initialized\n");
+  if (socketServer==-1) {
+    perror("initServer");
+    return 0;
+  }
+	create_thread(16384, f_pong, NULL);
+	create_thread(16384, f_pouet, NULL);
+	//create_thread(16384, f_ping, NULL);
+	//create_thread(16384, f_poong, NULL);
   printf("COUCOUCOUCOU\n");
-  gsleep(15);
+  gsleep(1500);
   mq_unlink("/mqtest");
-	exit(EXIT_SUCCESS); 
+  return 0;
 }

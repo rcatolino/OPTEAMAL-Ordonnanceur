@@ -168,15 +168,25 @@ void start_current_thread(void)
     exit(EXIT_SUCCESS); 
 } 
 
-int gthread_create(int stack_size, func_t f, void *args) 
+int gthread_create(gthread_t * thread, int stack_size, func_t f, void *args) 
 {
   int ret=0;
   struct thread *new_thread = (struct thread *)malloc(sizeof(struct thread));
+  if (thread!=NULL){
+    *thread=new_thread;
+  }
   TRACE("Context created : %p \n",new_thread);
-  if (!new_thread) return 0;
+  if (!new_thread){
+    errno=EAGAIN;
+    return -1;
+  }
 
   ret = init_thread(new_thread, stack_size, f, args); 
-  if (ret!=0) return ret;
+  if (ret!=0){
+    free(new_thread);
+    errno=EINVAL;
+    return -1;
+  }
   if ( (!current_thread) && (!first_thread))/*Si aucun contexte deja cree */ 
   {
     new_thread->next = new_thread;
@@ -373,8 +383,8 @@ void gthread_init(){
 	sigaction(SIGUSR2, &sa, (struct sigaction *)0);
 
   events_init();
-  gthread_create(0,NULL,NULL); //turn the main flow of execution into a gthread
+  gthread_create(NULL,0,NULL,NULL); //turn the main flow of execution into a gthread
   DEBUG("Main thread created\n");
-  gthread_create(20384,f_idle,NULL);//Create the idle thread
+  gthread_create(NULL,16384,f_idle,NULL);//Create the idle thread
 	start_sched(); 
 }

@@ -130,8 +130,8 @@ int main ( int argc, char *argv[]){
     perror("initServer");
     return 0;
   }
-	gthread_create(16384, f_pong, NULL);
-	gthread_create(16384, f_pouet, NULL);
+	gthread_create(NULL,16384, f_pong, NULL);
+	gthread_create(NULL,16384, f_pouet, NULL);
 	//gthread_create(16384, f_ping, NULL);
 	//gthread_create(16384, f_poong, NULL);
   printf("COUCOUCOUCOU\n");

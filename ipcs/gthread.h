@@ -4,6 +4,7 @@
 #include <stdint.h>
 enum threadstate {FINI, ACTIF, ATTENTE, INITIAL}; 
 typedef void (func_t)(void *); 
+typedef struct thread * gthread_t;
 
 struct sem {
     int jeton;
@@ -37,7 +38,7 @@ void yield(void);
 void ordonnanceur(void);
 
 int init_thread(struct thread *thread, int stack_size, func_t f, void *args); 
-int gthread_create(int stack_size, func_t f, void* args); 
+int gthread_create(gthread_t * thread, int stack_size, func_t f, void* args); 
 
 void sem_init(struct sem *sem, unsigned int val);
 void sem_take(struct sem *sem);

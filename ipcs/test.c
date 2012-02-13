@@ -7,6 +7,7 @@
 #include <string.h>
 #include "tcpserver.h"
 #include "gthread.h"
+#include "gmem.h"
 #include "ipcs.h"
 
 struct sem *semaphore;
@@ -14,7 +15,7 @@ static mqd_t mtest;
 static int socketServer;
 static int socketClient;
 
-void f_ping(void *args) 
+void * f_ping(void *args) 
 { 
   int i=0; 
     while(1)
@@ -27,15 +28,16 @@ void f_ping(void *args)
         printf("sending msg\n");
         if (gmq_send(mtest,"coucou",7,0)==-1){
           perror("mq_send ");
-          return ;
+          return NULL;
         }
         i++;
       }
     }
     printf("FINI\n");
+   return NULL;
 } 
 
-void f_pong(void *args) 
+void * f_pong(void *args) 
 { 
   char buff[11];
   int ret;
@@ -44,10 +46,10 @@ void f_pong(void *args)
     socketClient=waitClient(socketServer);
     if (socketClient==-1) {
       perror("wait client");
-      return;
+      return NULL;
     }
     printf("Client connected\n");
-    sem_give(semaphore);
+    gsem_give(semaphore);
     while(1)
     { 
       ret=grecv(socketClient,buff,10,0);
@@ -63,26 +65,28 @@ void f_pong(void *args)
     } 
     printf("Client deconnected\n");
   }
+  return NULL;
 }
 
-void f_poong(void *args) 
+void * f_poong(void *args) 
 { 
   char msg[10];
   while (1){
     printf("Call to mq_receive\n");
     if (gmq_receive(mtest,msg,10,0)==-1){
       perror("poong mq_receive ");
-      return ;
+      return NULL;
     }
     printf("%s\n",msg);
   }
+  return NULL;
 }
-void f_pouet(void * args){
+void * f_pouet(void * args){
   int ret;
   char buff[90];
   for(;;){
     //Wait for a client :
-    sem_take(semaphore);
+    gsem_take(semaphore);
     printf("Client waiting for imput...\n");
     for (ret=0;ret!=-1;){
       scanf("%80s",buff);
@@ -99,6 +103,7 @@ void f_pouet(void * args){
       }
     }
   }
+  return NULL;
 }
 
 int main ( int argc, char *argv[]){
@@ -119,10 +124,8 @@ int main ( int argc, char *argv[]){
     perror("mq_open ");
     return -1;
   }
-	semaphore = (struct sem *)malloc(sizeof(struct sem));
-	printf("Before init\n") ;
-	sem_init(semaphore, 0);
-	printf("After init\n") ;
+	semaphore = (struct sem *)gmalloc(sizeof(struct sem));
+	gsem_init(semaphore, 0);
 	
   socketServer=initServer(1337);
   printf("Server initialized\n");

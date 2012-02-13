@@ -1,6 +1,7 @@
 //Module providing several ipcs to use with the gthread API
 #define _GNU_SOURCE
 #include "gthread.h"
+#include "gmem.h"
 #include "hw.h"
 #include "ipcs.h"
 #include <stdlib.h>
@@ -89,7 +90,7 @@ int register_event(int fd, uint32_t events){
   if (i==NULL){
     DEBUG("Watching new file : %d\n",fd);
     //This file is beeing wathed for the fisrt time, add it in linked list
-    new_file=malloc(sizeof(struct file_watched));
+    new_file=gmalloc(sizeof(struct file_watched));
     new_file->fd=fd;
     new_file->ev.data.ptr=new_file; //used when an event is trigered on this fd
     new_file->next=first_file;

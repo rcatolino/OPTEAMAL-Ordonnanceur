@@ -8,6 +8,7 @@
 #include <errno.h>
 #include <sys/time.h>
 #include "gthread.h"
+#include "gmem.h"
 #include "hw.h"
   
 #define RETURN_SUCCESS 0
@@ -21,7 +22,7 @@ struct thread *prev_thread = NULL;
 struct thread *last_thread = NULL;
 static struct thread * sleeping[MAX_THREADS] = {NULL};
 
-void f_idle(void *args) {
+void * f_idle(void *args) {
 //This thread is always active, therefore when all over threads are stopped she 
 //can give cpu control back.
 //Notice that since this thread is always active and we dont't have any priorities
@@ -36,6 +37,7 @@ void f_idle(void *args) {
       nanosleep(&time,NULL);
       TRACE("waking up\n");
     }
+    return NULL;
 }
 
 void wakeUpThread(int signb, siginfo_t * infos, void * ucontext){
@@ -106,7 +108,7 @@ int init_thread(struct thread *thread, int stack_size, func_t f, void *args)
       //This thread is the main function, and therefore already has a valid context
       thread->etat=ACTIF;
     } else if (f!=NULL && stack_size!=0){
-      thread->stack = malloc(stack_size); 
+      thread->stack = gmalloc(stack_size); 
       if (!thread->stack) return 0; 
       //thread->stack is a pointer to the beginning of the stack, and we need
       //to store a pointer the end of the stack into the base pointer, therefore :
@@ -162,7 +164,7 @@ void start_current_thread(void)
     current_thread->f(current_thread->args);   
     TRACE("thread returned from entry point\n");
     current_thread->etat=FINI;
-    free(current_thread->stack);
+    gfree(current_thread->stack);
     remove_current_thread();
     ordonnanceur();
     exit(EXIT_SUCCESS); 
@@ -171,7 +173,7 @@ void start_current_thread(void)
 int gthread_create(gthread_t * thread, int stack_size, func_t f, void *args) 
 {
   int ret=0;
-  struct thread *new_thread = (struct thread *)malloc(sizeof(struct thread));
+  struct thread *new_thread = (struct thread *)gmalloc(sizeof(struct thread));
   if (thread!=NULL){
     *thread=new_thread;
   }
@@ -183,7 +185,7 @@ int gthread_create(gthread_t * thread, int stack_size, func_t f, void *args)
 
   ret = init_thread(new_thread, stack_size, f, args); 
   if (ret!=0){
-    free(new_thread);
+    gfree(new_thread);
     errno=EINVAL;
     return -1;
   }
@@ -276,14 +278,14 @@ void ordonnanceur(void)
 	irq_enable();
 }
 
-void sem_init(struct sem *sem, unsigned int val){
+void gsem_init(struct sem *sem, unsigned int val){
 	sem->jeton = val;
 	sem->waitingCtx = NULL;
 	sem->lastWaitingCtx = NULL;
 }
 
 //On prend un jeton
-void sem_take(struct sem *sem){
+void gsem_take(struct sem *sem){
 
 	irq_disable();
 	
@@ -310,7 +312,7 @@ void sem_take(struct sem *sem){
 }
 
 // Donner un jeton
-void sem_give(struct sem *sem){
+void gsem_give(struct sem *sem){
 	irq_disable();
 	sem->jeton++;
 	
@@ -371,7 +373,9 @@ void gthread_init(){
   stack_t ss;
   current_thread=NULL;
 
-  ss.ss_sp = malloc(SIGSTKSZ);
+  printf("LOL %d\n",SIGSTKSZ);
+  ss.ss_sp = gmalloc(SIGSTKSZ);
+  printf("LOL\n");
   ss.ss_size = SIGSTKSZ;
   ss.ss_flags = 0;
   if (sigaltstack(&ss, NULL) == -1){

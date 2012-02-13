@@ -3,14 +3,14 @@
 
 #include <stdint.h>
 enum threadstate {FINI, ACTIF, ATTENTE, INITIAL}; 
-typedef void (func_t)(void *); 
+typedef void * (func_t)(void *); 
 typedef struct thread * gthread_t;
 
-struct sem {
+typedef struct sem {
     int jeton;
     struct thread *waitingCtx;
     struct thread *lastWaitingCtx;
-};
+} gsem_t;
 
 struct thread { 
     void *esp; 
@@ -40,9 +40,9 @@ void ordonnanceur(void);
 int init_thread(struct thread *thread, int stack_size, func_t f, void *args); 
 int gthread_create(gthread_t * thread, int stack_size, func_t f, void* args); 
 
-void sem_init(struct sem *sem, unsigned int val);
-void sem_take(struct sem *sem);
-void sem_give(struct sem *sem);
+void gsem_init(struct sem *sem, unsigned int val);
+void gsem_take(struct sem *sem);
+void gsem_give(struct sem *sem);
 
 void remove_Current_thread();
 //ipcs : 

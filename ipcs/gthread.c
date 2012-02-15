@@ -373,9 +373,7 @@ void gthread_init(){
   stack_t ss;
   current_thread=NULL;
 
-  printf("LOL %d\n",SIGSTKSZ);
   ss.ss_sp = gmalloc(SIGSTKSZ);
-  printf("LOL\n");
   ss.ss_size = SIGSTKSZ;
   ss.ss_flags = 0;
   if (sigaltstack(&ss, NULL) == -1){

@@ -16,6 +16,7 @@ lib : $(LIB)
 install : $(LIB)
 	@cp ./libgthread.so.1 /usr/lib32/
 	@cp gthread.h /usr/include/
+	@cp ipcs.h /usr/include/gipcs.h
 	@echo Updating ld...
 	ldconfig
 

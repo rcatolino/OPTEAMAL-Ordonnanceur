@@ -55,6 +55,7 @@ int remove_file_listener(struct file_watched * file){
 int add_file_listener(struct file_watched * file, uint32_t events){
   int ret;
   //add the current thread to the threads pending for this event :
+  DEBUG("first_listener->next : %p\n",file->first_listener);
   current_thread->next=file->first_listener;//The current thread needs to be removed!!!
   file->first_listener=current_thread; 
   //Update the events wathed by the thread :
@@ -72,6 +73,11 @@ int add_file_listener(struct file_watched * file, uint32_t events){
     //this event is not beeing watched yet :
     file->ev.events|=events; // Update the events to watch
     ret=epoll_ctl(epolld,EPOLL_CTL_MOD,file->fd,&(file->ev));
+    if (ret==-1 && errno==ENOENT){
+      DEBUG("epoll_ctl errno ENOENT :%d\n",errno);
+      //WTF??? That wasn't even specified in the man page!
+    }
+    if (ret==-1) perror("epoll_ctl ");
     return ret;
   } else {
     //In the case where the new event is already watched, there is nothing
@@ -94,13 +100,14 @@ int register_event(int fd, uint32_t events){
     new_file->fd=fd;
     new_file->ev.data.ptr=new_file; //used when an event is trigered on this fd
     new_file->next=first_file;
+    new_file->first_listener=NULL;
     first_file=new_file;
     ret = add_file_listener(new_file,events);
   } else {
     //This file is already beeing watched :
     ret = add_file_listener(i,events);
   }
-  DEBUG("Event registered\n");
+  DEBUG("Event registered : %d\n",ret);
   return ret;
 }
 
@@ -212,7 +219,7 @@ int gaccept(int socketd, struct sockaddr * addr, socklen_t *addrlen){
   if(new_socket==0) return 0; //no need to wait
   if (errno==EAGAIN || errno==EWOULDBLOCK){
     DEBUG("accept would block, delay it\n");
-    wait_event(socketd,EPOLLIN | EPOLLOUT);
+    wait_event(socketd,EPOLLIN);
     return accept4(socketd,addr,addrlen,SOCK_NONBLOCK); //ask for the message again,
     //now that we know it won't block
   }

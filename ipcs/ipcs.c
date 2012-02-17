@@ -174,7 +174,9 @@ mqd_t gmq_open(const char * name, int oflag, mode_t mode, \
 int gmq_send(mqd_t mqdes, const char * msg_ptr, size_t msg_len, \
     unsigned int msg_prio) {
   int ret=0;
+  struct mq_attr attrs;
   ret = mq_send(mqdes, msg_ptr, msg_len, msg_prio);
+  mq_getattr(mqdes,&attrs);
   if(ret==0) return 0;
   if (errno==EAGAIN){
     DEBUG("mq_send would block, delay it\n");
@@ -186,9 +188,11 @@ int gmq_send(mqd_t mqdes, const char * msg_ptr, size_t msg_len, \
 ssize_t gmq_receive(mqd_t mqdes, char * msg_ptr, size_t msg_len,\
    unsigned int * msg_prio){
   int ret=0;
+  struct mq_attr attrs;
+  mq_getattr(mqdes,&attrs);
   ret = mq_receive(mqdes, msg_ptr, msg_len, msg_prio);
   if(ret==0) return 0; //no need to wait
-  if (errno==EAGAIN){
+  if (attrs.mq_curmsgs==0){
     DEBUG("mq_receive would block, delay it\n");
     wait_event(mqdes,EPOLLIN);
     return mq_receive(mqdes, msg_ptr, msg_len, msg_prio); //ask for the message again,

@@ -2,7 +2,7 @@
 #define _GTHREAD_H_ 
 
 #include <stdint.h>
-enum threadstate {FINI, ACTIF, ATTENTE, INITIAL}; 
+enum threadstate {FINI, ACTIF, ATTENTE, INITIAL, ANNULE}; 
 typedef void * (func_t)(void *); 
 typedef struct thread * gthread_t;
 

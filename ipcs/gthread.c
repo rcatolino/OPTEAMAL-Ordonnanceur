@@ -167,7 +167,7 @@ void start_current_thread(void)
     gfree(current_thread->stack);
     remove_current_thread();
     ordonnanceur();
-    exit(EXIT_SUCCESS); 
+    exit(EXIT_SUCCESS);//this line should not be reached
 } 
 
 int gthread_create(gthread_t * thread, int stack_size, func_t f, void *args) 
@@ -258,10 +258,12 @@ void ordonnanceur(void)
           //In that case the prev_thread is still the last active thread. Just
           //schedule the next one to be ran.
 					break;
+        case ANNULE:
 				case FINI:
           TRACE("current context ended\n");
 					nextCtx = prev_thread->next;//TODO
           //What's to be done? free thread context?
+          gfree(current_thread);
 					break;
 				default:
 					break;
@@ -367,6 +369,32 @@ void remove_current_thread(){
   }
 }
 
+void gthread_cancel(gthread_t thread){
+  gthread_t prev=NULL;
+  irq_disable();
+  thread->etat=ANNULE;
+  gfree(thread->stack);
+  if (thread==current_thread){
+    remove_current_thread();
+  } else {
+    //find previous thread in list :
+    for(prev=thread; prev->next!=thread;prev=prev->next);
+    //we should use a doubly-linked-list instead
+    if( thread == first_thread ) 
+    {
+      first_thread = thread->next;
+      last_thread->next = first_thread;
+    }else if(current_thread == last_thread){ 
+      prev->next = first_thread;
+      last_thread = prev;
+    }else{ 
+      prev->next = thread->next;
+    }
+  }
+  ordonnanceur();
+  exit(EXIT_SUCCESS);
+  return;
+}
 void gthread_init(){
   /* start timer handler */
 	struct sigaction sa;

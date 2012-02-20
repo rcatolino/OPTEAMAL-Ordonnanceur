@@ -369,14 +369,21 @@ void remove_current_thread(){
   }
 }
 
-void gthread_cancel(gthread_t thread){
+int gthread_cancel(gthread_t thread){
   gthread_t prev=NULL;
   irq_disable();
-  thread->etat=ANNULE;
-  gfree(thread->stack);
   if (thread==current_thread){
+    gfree(thread->stack);
+    thread->etat=ANNULE;
     remove_current_thread();
+    ordonnanceur();
   } else {
+    if (thread->etat==ATTENTE) {
+      //implement cancelation of waiting thread would prove a litle much tricky,
+      //and we don't need it in ghome. (actually we don't really need cancelation...)
+      irq_enable(); 
+      return -1;
+    }
     //find previous thread in list :
     for(prev=thread; prev->next!=thread;prev=prev->next);
     //we should use a doubly-linked-list instead
@@ -391,11 +398,10 @@ void gthread_cancel(gthread_t thread){
       prev->next = thread->next;
     }
   }
-  ordonnanceur();
-  exit(EXIT_SUCCESS);
-  return;
+  irq_enable();
+  return 0;
 }
-void gthread_init(){
+void gthread_init(gthread_t * main_thread){
   /* start timer handler */
 	struct sigaction sa;
   stack_t ss;
@@ -406,14 +412,16 @@ void gthread_init(){
   ss.ss_flags = 0;
   if (sigaltstack(&ss, NULL) == -1){
     TRACE("Unable to allocate sigalt stack");
+    sa.sa_flags = SA_SIGINFO;
+  }else{
+    sa.sa_flags = SA_ONSTACK | SA_SIGINFO;
   }
 	sigemptyset(&sa.sa_mask);
 	sa.sa_sigaction = wakeUpThread;
-	sa.sa_flags = SA_ONSTACK | SA_SIGINFO;
 	sigaction(SIGUSR2, &sa, (struct sigaction *)0);
 
   events_init();
-  gthread_create(NULL,0,NULL,NULL); //turn the main flow of execution into a gthread
+  gthread_create(main_thread,0,NULL,NULL); //turn the main flow of execution into a gthread
   DEBUG("Main thread created\n");
   gthread_create(NULL,16384,f_idle,NULL);//Create the idle thread
 	start_sched(); 

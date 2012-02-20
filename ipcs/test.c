@@ -14,6 +14,8 @@ struct sem *semaphore;
 static mqd_t mtest;
 static int socketServer;
 static int socketClient;
+static gthread_t fpong;
+static gthread_t fpouet;
 
 void * f_ping(void *args) 
 { 
@@ -91,6 +93,10 @@ void * f_pouet(void * args){
     for (ret=0;ret!=-1;){
       scanf("%80s",buff);
       buff[80]='\0';
+      if (buff[0]=='A'){
+        shutdown(socketClient,SHUT_RD);
+        gthread_cancel(fpouet);
+      }
       gsend(socketClient,buff,strlen(buff),0);
       if (ret==-1){
         perror("grecv");
@@ -101,6 +107,10 @@ void * f_pouet(void * args){
         perror("grecv");
         break;
       }
+      if (buff[0]=='A'){
+        shutdown(socketClient,SHUT_WR);
+        close(socketClient);
+      }
     }
   }
   return NULL;
@@ -108,22 +118,26 @@ void * f_pouet(void * args){
 
 int main ( int argc, char *argv[]){
 	
+  gthread_t main_thread;
+  /*
   struct mq_attr attrs = {
     .mq_maxmsg=10, //beyond 10 msgs one might need root acces
     .mq_msgsize=10,
   };
   mode_t mqMode= S_IRWXO; //Allows everything for everyone
+  */
 	printf("START\n") ;
   mq_unlink("/mqtest");
 
-  gthread_init();
-
+  gthread_init(&main_thread);
+/*
 	mtest=gmq_open( "/mqtest" , O_EXCL|O_RDWR|O_CREAT,\
       mqMode, &attrs);
   if (mtest==-1){
     perror("mq_open ");
     return -1;
   }
+  */
 	semaphore = (struct sem *)gmalloc(sizeof(struct sem));
 	gsem_init(semaphore, 0);
 	
@@ -133,12 +147,12 @@ int main ( int argc, char *argv[]){
     perror("initServer");
     return 0;
   }
-	gthread_create(NULL,16384, f_pong, NULL);
-	gthread_create(NULL,16384, f_pouet, NULL);
+	gthread_create(&fpong,16384, f_pong, NULL);
+	gthread_create(&fpouet,16384, f_pouet, NULL);
 	//gthread_create(16384, f_ping, NULL);
 	//gthread_create(16384, f_poong, NULL);
+  gthread_cancel(main_thread);
   printf("COUCOUCOUCOU\n");
-  gsleep(1500);
   mq_unlink("/mqtest");
   return 0;
 }

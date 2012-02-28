@@ -14,7 +14,7 @@
 #define RETURN_SUCCESS 0
 #define RETURN_FAILURE 1
 #define EXIT_SUCCESS 0 
-#define CTX_MAGIC 0xDEADBEEF
+#define CTX_CHK 0xDEADBEEF
 #define MAX_THREADS 5
  
 struct thread *first_thread = NULL;
@@ -125,7 +125,7 @@ int init_thread(struct thread *thread, int stack_size, func_t f, void *args)
       return -1;
     }
     thread->args = args; 
-    thread->thread_magic = CTX_MAGIC; //I still don't know why this is useful
+    thread->thread_magic = CTX_CHK; //I still don't know why this is useful
     DEBUG("Thread initialized\n");
     return 0;
 } 
@@ -134,7 +134,7 @@ int init_thread(struct thread *thread, int stack_size, func_t f, void *args)
 void switch_to_thread(struct thread *thread) 
 { 
     TRACE("switching to thread %p\n",thread);
-    assert(thread->thread_magic==CTX_MAGIC);//May be this can be used to detect
+    assert(thread->thread_magic==CTX_CHK);//May be this can be used to detect
     // buffer overflows? 
     assert(thread->etat!=FINI); 
     if (current_thread) /* Si il y a un contexte courant */

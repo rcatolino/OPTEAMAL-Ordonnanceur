@@ -4,7 +4,6 @@
 
    Basic hardware emulation.
    Philippe Marquet, Dec 2003
-   Raphael Catolino, Jan 2012
    
 */
 #include <stdio.h>

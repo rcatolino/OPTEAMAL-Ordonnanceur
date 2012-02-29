@@ -15,8 +15,15 @@
 #define RETURN_FAILURE 1
 #define EXIT_SUCCESS 0 
 #define CTX_CHK 0xDEADBEEF
+//To simplify the code, we use stack-allocated arrays of threads in gsleep,
+//therefore we can't put more than 5 threads to sleep at the same time, however
+//it shouldn't impact the rest of the API
 #define MAX_THREADS 5
  
+//Simply Linked list with two entry points.
+//prev_thread is a (bad) way to keep track of the preceding thread,
+//to allow easy supression of the current thread in the midle of the list,
+//without maintaining a doubly linked list.
 struct thread *first_thread = NULL;
 struct thread *prev_thread = NULL;
 struct thread *last_thread = NULL;
@@ -25,7 +32,7 @@ static struct thread * sleeping[MAX_THREADS] = {NULL};
 void * f_idle(void *args) {
 //This thread is always active, therefore when all over threads are stopped she 
 //can give cpu control back.
-//Notice that since this thread is always active and we dont't have any priorities
+//Note that since this thread is always active and we dont't have any priorities
 //this thread is regularly scheduled to run, even if useful work could be done instead.
   struct timespec time = {
     .tv_sec=0,
@@ -42,7 +49,7 @@ void * f_idle(void *args) {
 
 void wakeUpThread(int signb, siginfo_t * infos, void * ucontext){
   int i = infos->si_value.sival_int;
-  //i is the sleep id of the thread to be woken up. (see gsleep)
+  //i is the sleep-id of the thread to be woken up. (see gsleep)
   irq_disable();
   if (sleeping[i]==NULL){
     irq_enable();
@@ -53,6 +60,7 @@ void wakeUpThread(int signb, siginfo_t * infos, void * ucontext){
   TRACE("current_thread : %p, last_thread : %p, sleeping thread : %p\n"\
       ,current_thread,last_thread,sleeping[i]);
   sleeping[i]->etat = ACTIF;
+  //chain thread back into the main list
   last_thread->next = sleeping[i];
   last_thread = last_thread->next;
   last_thread->next = first_thread;			
@@ -100,7 +108,11 @@ unsigned int gsleep(unsigned int seconds){
   irq_enable();
   return -1;
 }
-/* Initialisation du contexte d'execution associee a f*/
+//Thread context initialization.
+//func_t f may be NULL, in that case we consider that we are initializing
+//the current thread. This is useful to change the main flow of execution into
+//a gthread. In that case the stack_size must be null,
+//and the args argument is ignored.
 int init_thread(struct thread *thread, int stack_size, func_t f, void *args) 
 { 	
     thread->f = f; 
@@ -113,10 +125,9 @@ int init_thread(struct thread *thread, int stack_size, func_t f, void *args)
       //thread->stack is a pointer to the beginning of the stack, and we need
       //to store a pointer the end of the stack into the base pointer, therefore :
       thread->ebp = (void *)((char*)thread->stack + stack_size - 4); 
-      //Why -4 ? No idea, it seems to be working fine without it.
       //At the thread creation the stack is empty, so the stack pointer=base pointer :
       thread->esp = (void *)((char*)thread->stack + stack_size - 4); 
-      //the (char*) cast is there because of the pointer arithmetics,
+      //the (char*) cast is there because of the pointer arithmetic,
       //we don't want to add 4*stack_size, only stack_size
       thread->etat=INITIAL; 
     } else {
@@ -125,7 +136,7 @@ int init_thread(struct thread *thread, int stack_size, func_t f, void *args)
       return -1;
     }
     thread->args = args; 
-    thread->thread_magic = CTX_CHK; //I still don't know why this is useful
+    thread->thread_chk = CTX_CHK; 
     DEBUG("Thread initialized\n");
     return 0;
 } 
@@ -134,14 +145,16 @@ int init_thread(struct thread *thread, int stack_size, func_t f, void *args)
 void switch_to_thread(struct thread *thread) 
 { 
     TRACE("switching to thread %p\n",thread);
-    assert(thread->thread_magic==CTX_CHK);//May be this can be used to detect
-    // buffer overflows? 
+    assert(thread->thread_chk==CTX_CHK);
     assert(thread->etat!=FINI); 
+    //switch the stack :
+    //save our stack
     if (current_thread) /* Si il y a un contexte courant */
         asm("movl %%esp, %0" "\n" "movl %%ebp, %1" 
             :"=r"(current_thread->esp), 
             "=r"(current_thread->ebp)  
         );
+    //and restore the new one
     current_thread=thread; 
     asm("movl %0, %%esp" "\n" "movl %1, %%ebp" 
         : 
@@ -154,6 +167,8 @@ void switch_to_thread(struct thread *thread)
         TRACE("starting new thread\n");
         start_current_thread(); 
     } 
+    //since the programm counter is saved on the stack whith the function call,
+    //switching stacks will cause the pc to be restored too when this function return.
 }  
 
 void start_current_thread(void) 
@@ -211,12 +226,6 @@ int gthread_create(gthread_t * thread, int stack_size, func_t f, void *args)
 void yield(void) 
 { 
 	ordonnanceur();
-	/*
-    if (current_thread) // Si on a un contexte courant
-        switch_to_thread(current_thread->next); 
-    else 
-        switch_to_thread(first_thread);
-    */
 } 
 
 void start_sched (void) {
@@ -235,9 +244,9 @@ void ordonnanceur(void)
 	irq_disable();
 	TRACE("----------------------------------------------------------Ordonnancement\n");
 	
-	if (current_thread) // Si on a un contexte courant
+	if (current_thread)
   //Since the idle thread creation,
-  //we always have a current context. This test seems to be useless.
+  //we should always have a current context.
 	  {
 			switch(current_thread->etat){
 				case INITIAL:
@@ -256,7 +265,7 @@ void ordonnanceur(void)
           TRACE("current context stopped\n");
 					nextCtx = prev_thread->next;
           //In that case the prev_thread is still the last active thread. Just
-          //schedule the next one to be ran.
+          //schedule the next one to be run.
 					break;
         case ANNULE:
 				case FINI:
@@ -379,14 +388,14 @@ int gthread_cancel(gthread_t thread){
     ordonnanceur();
   } else {
     if (thread->etat==ATTENTE) {
-      //implement cancelation of waiting thread would prove a litle much tricky,
+      //implement cancelation of waiting thread would prove a litle much trickier,
       //and we don't need it in ghome. (actually we don't really need cancelation...)
       irq_enable(); 
       return -1;
     }
     //find previous thread in list :
     for(prev=thread; prev->next!=thread;prev=prev->next);
-    //we should use a doubly-linked-list instead
+    //we should really use a doubly-linked-list...
     if( thread == first_thread ) 
     {
       first_thread = thread->next;

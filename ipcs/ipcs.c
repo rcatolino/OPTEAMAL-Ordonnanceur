@@ -135,7 +135,7 @@ void check_events(){
   //since threads are added in first position in the linked list,
   //the first one to be found will be the last added, which mean that
   //if two or more threads are waiting for the same event on the same
-  //file descriptor the last one to be registered will be the first to
+  //file descriptor, the last one to be registered will be the first to
   //be woken up. This behaviour is not very nice, but it's the easier 
   //to implement right now
   DEBUG("file descriptor : %d, first thread : %p\n",\
@@ -170,6 +170,7 @@ int wait_event(int fd, uint32_t events){
   ordonnanceur();
   return 0;
 }
+//gipcs wrappers :
 // Message queues :
 mqd_t gmq_open(const char * name, int oflag, mode_t mode, \
     struct mq_attr * attr){
@@ -208,7 +209,7 @@ ssize_t gmq_receive(mqd_t mqdes, char * msg_ptr, size_t msg_len,\
   return ret;
 }
 // Sockets :
-inline int gsocket(int domain, int type, int protocol){
+int gsocket(int domain, int type, int protocol){
   type|=SOCK_NONBLOCK;
   return socket(domain,type,protocol);
 }

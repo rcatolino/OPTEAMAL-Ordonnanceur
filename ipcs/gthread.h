@@ -19,7 +19,7 @@ struct thread {
     void *stack; 
     enum threadstate etat; 
     func_t *f; 
-    unsigned int thread_magic; 
+    unsigned int thread_chk;
     struct thread *next;
     uint32_t events;
 };
